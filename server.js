@@ -8,8 +8,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const ROOT = process.cwd();
-const DATA_DIR = path.join(ROOT, "data");
-const GENERATED_DIR = path.join(ROOT, "generated");
+const WRITABLE_ROOT = process.env.VERCEL === "1" ? "/tmp" : ROOT;
+const DATA_DIR = path.join(WRITABLE_ROOT, "data");
+const GENERATED_DIR = path.join(WRITABLE_ROOT, "generated");
 const PUBLIC_DIR = path.join(ROOT, "public");
 
 const PROFILE_FILE = path.join(DATA_DIR, "profile.json");
