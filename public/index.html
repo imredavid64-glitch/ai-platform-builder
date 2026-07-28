@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Platform Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div class="bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="#" class="nav-logo">AI Platform Builder</a>
+            <div class="nav-links">
+                <a href="#how-it-works">How It Works</a>
+                <a href="#builder">Builder</a>
+            </div>
+            <a href="#builder" class="btn-primary nav-cta">Start Building</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-content">
+            <div class="badge">v1.0 — Build Your Own AI</div>
+            <h1>Design the AI.<br />It rewrites its own platform.</h1>
+            <p class="hero-sub">
+                Define a personality, feed it knowledge, and generate a live agent,
+                a branded website, or a desktop app — all from a single brief.
+            </p>
+            <div class="hero-actions">
+                <a href="#builder" class="btn-primary btn-lg">Start Building</a>
+                <a href="#how-it-works" class="btn-outline btn-lg">How It Works</a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat"><span class="stat-num">3</span><span class="stat-label">Build Types</span></div>
+                <div class="stat"><span class="stat-num">3</span><span class="stat-label">Architectures</span></div>
+                <div class="stat"><span class="stat-num">1</span><span class="stat-label">Brief</span></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="steps-section" id="how-it-works">
+        <h2>How It Works</h2>
+        <p class="section-sub">Three steps to your own AI platform.</p>
+        <div class="steps-grid">
+            <div class="step-card">
+                <div class="step-num">01</div>
+                <h3>Define</h3>
+                <p>Set your AI's personality, specialization, tone, and goals. Choose a build type — agent, website, or desktop app — and pick an architecture.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-num">02</div>
+                <h3>Train</h3>
+                <p>Add training notes and upload documents. The platform indexes your knowledge so the AI can draw from it in every response.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-num">03</div>
+                <h3>Deploy</h3>
+                <p>Generate your AI. Chat with it live, export the files, or open a preview — your AI is ready to use immediately.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="builder">
+        <div class="builder-header">
+            <div class="badge">AI Platform Builder</div>
+            <h2>Build Your AI</h2>
+            <div class="status">
+                <span id="modeIndicator">Mode: ...</span>
+                <span id="embeddingIndicator">Embeddings: ...</span>
+                <span id="archIndicator">Architecture: Single LLM</span>
+                <span id="buildIndicator">Build: AI Agent</span>
+                <button id="exportBtn" class="ghost">Export ZIP</button>
+                <button id="resetBtn" class="ghost">Start Over</button>
+            </div>
+        </div>
+
+        <div class="card" style="--delay: 0s;">
+            <h2>1. Define the AI</h2>
+            <form id="profileForm">
+                <div class="grid">
+                    <label>Name<input type="text" id="name" placeholder="Atlas" /></label>
+                    <label>Specialization<input type="text" id="specialization" placeholder="Climate risk strategist" required /></label>
+                </div>
+                <label>Persona<textarea id="persona" placeholder="A decisive strategist who blends research with execution." rows="3" required></textarea></label>
+                <label>Tone<select id="tone"><option>Direct, helpful, concise</option><option>Analytical and structured</option><option>Warm and coaching</option><option>Bold and visionary</option></select></label>
+                <div class="grid-3">
+                    <label>Build Type<select id="buildType"><option value="agent">AI Agent</option><option value="website">Website</option><option value="desktop">Desktop App</option></select></label>
+                    <label>Architecture<select id="architecture"><option value="single">Single LLM</option><option value="multi-llm">Multi-LLM Routing</option><option value="sustainable">Sustainable (Efficient)</option></select></label>
+                    <div class="arch-info" id="archInfo"><span class="arch-label">Single LLM</span> — one model handles all requests</div>
+                </div>
+                <label>Goals<textarea id="goals" rows="2" placeholder="Deliver clear recommendations and next steps."></textarea></label>
+                <label>Constraints<textarea id="constraints" rows="2" placeholder="Ask clarifying questions when assumptions are risky."></textarea></label>
+                <button type="submit" id="generateBtn">Generate Platform</button>
+            </form>
+            <div class="preview">
+                <h3>System Prompt Preview</h3>
+                <pre id="promptPreview">Define the AI to generate a live prompt.</pre>
+            </div>
+            <div id="resultPanel" class="result-panel hidden">
+                <h3 id="resultTitle">Generated</h3>
+                <div id="resultContent"></div>
+                <div id="resultFiles" class="file-list"></div>
+                <div id="resultPreview" class="preview-link"></div>
+            </div>
+        </div>
+
+        <div class="card" style="--delay: 0.08s;">
+            <h2>2. Train It</h2>
+            <div class="split">
+                <form id="trainForm">
+                    <h3>Add Training Note</h3>
+                    <label>Note Title<input type="text" id="noteTitle" placeholder="Risk appetite framework" /></label>
+                    <label>Source<input type="text" id="noteSource" placeholder="Internal wiki" /></label>
+                    <label>Training Note<textarea id="noteContent" rows="4" placeholder="Summarize the domain knowledge you want the AI to reuse." required></textarea></label>
+                    <button type="submit">Add Training Note</button>
+                </form>
+                <form id="ingestForm">
+                    <h3>Ingest Document</h3>
+                    <label>Document Title<input type="text" id="docTitle" placeholder="Market outlook 2026" /></label>
+                    <label>Source<input type="text" id="docSource" placeholder="Team drive" /></label>
+                    <label>Upload File (txt, md, csv, json)<input type="file" id="docFile" accept=".txt,.md,.csv,.json" /></label>
+                    <label>Document Text<textarea id="docContent" rows="4" placeholder="Paste or upload content to index." required></textarea></label>
+                    <button type="submit">Index Document</button>
+                </form>
+            </div>
+            <div class="preview">
+                <h3>Training Notes</h3>
+                <div id="notesList" class="note-list"></div>
+            </div>
+            <div class="preview">
+                <h3>Indexed Documents</h3>
+                <div id="docsList" class="note-list"></div>
+            </div>
+        </div>
+
+        <div class="card" style="--delay: 0.16s;">
+            <h2>3. Test the Agent</h2>
+            <div id="chatLog" class="chat-log"></div>
+            <form id="chatForm" class="chat-input">
+                <input type="text" id="chatInput" placeholder="Ask the specialized AI for a recommendation..." autocomplete="off" required />
+                <button type="submit">Send</button>
+            </form>
+            <p class="hint">This sandbox stores your profile and notes locally. For a real model, connect a remote provider in the server config.</p>
+        </div>
+    </section>
+
+    <footer>
+        <p>Generated artifacts saved to <span class="mono">generated/&lt;your-ai&gt;</span>. Choose <strong>Website</strong> for a landing page or <strong>Desktop App</strong> for an Electron client.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

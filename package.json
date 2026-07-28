@@ -1,0 +1,13 @@
+{
+  "name": "ai-platform-builder",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "archiver": "^6.0.2",
+    "express": "^4.22.2"
+  }
+}
