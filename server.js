@@ -14,12 +14,14 @@ const GENERATED_DIR = path.join(WRITABLE_ROOT, "generated");
 const PUBLIC_DIR = path.join(ROOT, "public");
 
 const PROFILE_FILE = path.join(DATA_DIR, "profile.json");
+const PROFILES_DIR = path.join(DATA_DIR, "profiles");
 const NOTES_FILE = path.join(DATA_DIR, "notes.json");
 const CHUNKS_FILE = path.join(DATA_DIR, "chunks.json");
 
 const mkdirSync = require("fs").mkdirSync;
 mkdirSync(DATA_DIR, { recursive: true });
 mkdirSync(GENERATED_DIR, { recursive: true });
+mkdirSync(PROFILES_DIR, { recursive: true });
 
 app.use(express.json({ limit: "5mb" }));
 app.use(express.static(PUBLIC_DIR));
@@ -48,25 +50,85 @@ app.get("/api/profile", async (req, res) => {
   res.json(profile);
 });
 
+app.get("/api/profiles", async (req, res) => {
+  const profiles = await listProfiles();
+  res.json(profiles);
+});
+
+app.get("/api/profile/:slug", async (req, res) => {
+  const profile = await readJson(profilePath(req.params.slug), null);
+  if (!profile) {
+    return res.status(404).json({ error: "Profile not found" });
+  }
+  res.json(profile);
+});
+
+app.delete("/api/profile/:slug", async (req, res) => {
+  const slug = req.params.slug;
+  try {
+    await fs.unlink(profilePath(slug));
+    const rmDir = path.join(GENERATED_DIR, slug);
+    await fs.rm(rmDir, { recursive: true, force: true });
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
+app.post("/api/profile/:slug/duplicate", async (req, res) => {
+  const slug = req.params.slug;
+  const existing = await readJson(profilePath(slug), null);
+  if (!existing) {
+    return res.status(404).json({ error: "Profile not found" });
+  }
+  const newSlug = await uniqueSlug(existing.name + " copy");
+  const profile = { ...existing, slug: newSlug, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  profile.systemPrompt = buildSystemPrompt(profile);
+  await writeJson(profilePath(newSlug), profile);
+  await writeJson(PROFILE_FILE, profile);
+  const notes = await getNotes();
+  const chunks = await getChunks();
+  const generated = await writeGenerated(profile, notes, chunks);
+  const instructions = buildInstructions(profile, generated.slug);
+  res.json({
+    ...profile,
+    generated: { ...generated, instructions, previewUrl: profile.buildType === "website" ? `/generated/${generated.slug}/index.html` : null }
+  });
+});
+
 app.post("/api/profile", async (req, res) => {
   const input = sanitizeProfile(req.body || {});
   if (!input.persona || !input.specialization) {
     return res.status(400).json({ error: "persona and specialization are required" });
   }
 
-  const existing = await readJson(PROFILE_FILE, null);
-  const now = new Date().toISOString();
-  const profile = {
-    ...defaultProfile(),
-    ...existing,
-    ...input,
-    updatedAt: now
-  };
-  if (!profile.createdAt) {
-    profile.createdAt = now;
+  const existingSlug = input.slug ? safeSlug(input.slug) : null;
+  let profile;
+  let now = new Date().toISOString();
+
+  if (existingSlug) {
+    const existing = await readJson(profilePath(existingSlug), null);
+    profile = {
+      ...defaultProfile(),
+      ...existing,
+      ...input,
+      slug: existingSlug,
+      updatedAt: now
+    };
+    if (!profile.createdAt) profile.createdAt = now;
+  } else {
+    const slug = await uniqueSlug(input.name || input.specialization);
+    profile = {
+      ...defaultProfile(),
+      ...input,
+      slug,
+      updatedAt: now,
+      createdAt: now
+    };
   }
   profile.systemPrompt = buildSystemPrompt(profile);
 
+  await writeJson(profilePath(profile.slug), profile);
   await writeJson(PROFILE_FILE, profile);
   const notes = await getNotes();
   const chunks = await getChunks();
@@ -340,7 +402,8 @@ function sanitizeProfile(input) {
     goals: String(input.goals || "").trim(),
     constraints: String(input.constraints || "").trim(),
     buildType: ["agent", "website", "desktop"].includes(input.buildType) ? input.buildType : "agent",
-    architecture: ["single", "multi-llm", "sustainable"].includes(input.architecture) ? input.architecture : "single"
+    architecture: ["single", "multi-llm", "sustainable"].includes(input.architecture) ? input.architecture : "single",
+    slug: input.slug ? String(input.slug).trim() : undefined
   };
 }
 
@@ -828,6 +891,35 @@ async function writeJson(file, data) {
   await fs.writeFile(file, `${payload}\n`, "utf8");
 }
 
+function profilePath(slug) {
+  return path.join(PROFILES_DIR, `${slug}.json`);
+}
+
+async function listProfiles() {
+  try {
+    const entries = await fs.readdir(PROFILES_DIR);
+    const slugs = entries.filter(f => f.endsWith(".json")).map(f => f.replace(/\.json$/, ""));
+    const profiles = await Promise.all(
+      slugs.map(s => readJson(profilePath(s), null))
+    );
+    return profiles
+      .filter(Boolean)
+      .map((p, i) => ({ ...p, slug: slugs[i] }))
+      .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  } catch {
+    return [];
+  }
+}
+
+async function uniqueSlug(base) {
+  let slug = safeSlug(base);
+  const existing = (await listProfiles()).map(p => p.slug);
+  if (!existing.includes(slug)) return slug;
+  let i = 1;
+  while (existing.includes(`${slug}-${i}`)) i++;
+  return `${slug}-${i}`;
+}
+
 async function writeGenerated(profile, notes, chunks) {
   const slug = safeSlug(profile.name || profile.specialization);
   const dir = path.join(GENERATED_DIR, slug);
@@ -855,7 +947,6 @@ async function writeGenerated(profile, notes, chunks) {
     const header = `# ${profile.name} - ${profile.buildType === "website" ? "Website" : profile.buildType === "desktop" ? "Desktop App" : "AI Agent"}`;
     const common = [
       "",
-      "Generated by AI Platform Builder.",
       `Build type: ${profile.buildType}`,
       `Architecture: ${profile.architecture}`,
       "",
@@ -879,8 +970,7 @@ async function generateWebsite(profile, dir) {
   const features = [
     `Specialized in ${escHtml(profile.specialization)}`,
     escHtml(profile.goals || "Expert-level guidance"),
-    `Architecture: ${archLabel}`,
-    "Powered by AI Platform Builder"
+    `Architecture: ${archLabel}`
   ];
 
   const html = `<!doctype html>
@@ -932,7 +1022,7 @@ async function generateWebsite(profile, dir) {
       </section>
     </main>
     <footer>
-      <p>Generated by AI Platform Builder &middot; ${profile.architecture} architecture</p>
+      <p>${profile.architecture} architecture</p>
     </footer>
   </div>
 </body>

@@ -40,10 +40,92 @@ const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
 const chatLog = document.getElementById("chatLog");
 
+const galleryGrid = document.getElementById("galleryGrid");
+const editIndicator = document.getElementById("editIndicator");
+const editName = document.getElementById("editName");
+const cancelEdit = document.getElementById("cancelEdit");
+
+let editingSlug = null;
+
 init();
 
 async function init() {
-  await Promise.all([loadHealth(), loadProfile(), loadNotes(), loadDocs()]);
+  await Promise.all([loadHealth(), loadProfile(), loadNotes(), loadDocs(), loadProfiles()]);
+}
+
+cancelEdit.addEventListener("click", (e) => {
+  e.preventDefault();
+  editingSlug = null;
+  editIndicator.classList.add("hidden");
+  updateButtonLabel();
+});
+
+async function loadProfiles() {
+  const res = await fetch("/api/profiles");
+  const profiles = await res.json();
+  renderGallery(profiles);
+}
+
+function renderGallery(profiles) {
+  if (!galleryGrid) return;
+  if (!profiles.length) {
+    galleryGrid.innerHTML = '<p class="hint" style="text-align:center;grid-column:1/-1">No profiles yet. Create one below.</p>';
+    return;
+  }
+  let html = "";
+  for (const p of profiles) {
+    const buildLabel = { agent: "Agent", website: "Website", desktop: "Desktop App" }[p.buildType] || "Agent";
+    const archLabel = { single: "Single", "multi-llm": "Multi-LLM", sustainable: "Sustainable" }[p.architecture] || "Single";
+    html += '<div class="gallery-card">';
+    html += '<div class="gallery-name">' + escHtml(p.name) + '</div>';
+    html += '<div class="gallery-spec">' + escHtml(p.specialization) + '</div>';
+    html += '<div class="gallery-meta"><span>' + buildLabel + '</span><span>' + archLabel + '</span></div>';
+    html += '<div class="gallery-actions">';
+    html += '<button class="ghost gallery-edit" data-slug="' + escHtml(p.slug) + '">Edit</button>';
+    html += '<button class="ghost gallery-duplicate" data-slug="' + escHtml(p.slug) + '">Duplicate</button>';
+    html += '<button class="ghost gallery-delete" data-slug="' + escHtml(p.slug) + '" style="color:var(--danger)">Delete</button>';
+    html += '</div></div>';
+  }
+  galleryGrid.innerHTML = html;
+
+  galleryGrid.querySelectorAll(".gallery-edit").forEach(btn => {
+    btn.addEventListener("click", () => loadProfileForEdit(btn.dataset.slug));
+  });
+  galleryGrid.querySelectorAll(".gallery-duplicate").forEach(btn => {
+    btn.addEventListener("click", () => duplicateProfile(btn.dataset.slug));
+  });
+  galleryGrid.querySelectorAll(".gallery-delete").forEach(btn => {
+    btn.addEventListener("click", () => deleteProfile(btn.dataset.slug));
+  });
+}
+
+async function loadProfileForEdit(slug) {
+  const res = await fetch("/api/profile/" + slug);
+  if (!res.ok) return;
+  const profile = await res.json();
+  setProfileFields(profile);
+  editingSlug = slug;
+  editName.textContent = profile.name;
+  editIndicator.classList.remove("hidden");
+  promptPreview.textContent = profile.systemPrompt || "Define the AI to generate a live prompt.";
+  document.getElementById("builder").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function duplicateProfile(slug) {
+  const res = await fetch("/api/profile/" + slug + "/duplicate", { method: "POST" });
+  if (!res.ok) return;
+  await loadProfiles();
+}
+
+async function deleteProfile(slug) {
+  if (!confirm("Delete this profile and its generated files?")) return;
+  const res = await fetch("/api/profile/" + slug, { method: "DELETE" });
+  if (!res.ok) return;
+  if (editingSlug === slug) {
+    editingSlug = null;
+    editIndicator.classList.add("hidden");
+  }
+  await Promise.all([loadProfiles(), loadProfile()]);
 }
 
 async function loadHealth() {
@@ -220,6 +302,9 @@ profileForm.addEventListener("submit", async (event) => {
     buildType: buildTypeInput.value,
     architecture: architectureInput.value
   };
+  if (editingSlug) {
+    payload.slug = editingSlug;
+  }
 
   try {
     const res = await fetch("/api/profile", {
@@ -237,6 +322,9 @@ profileForm.addEventListener("submit", async (event) => {
     const profile = await res.json();
     promptPreview.textContent = profile.systemPrompt;
     showResult(profile);
+    editingSlug = null;
+    editIndicator.classList.add("hidden");
+    await loadProfiles();
   } finally {
     generateBtn.disabled = false;
     updateButtonLabel();

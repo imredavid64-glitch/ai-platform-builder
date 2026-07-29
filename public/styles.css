@@ -181,6 +181,105 @@ body {
   letter-spacing: 0.08em;
 }
 
+/* ---- Gallery ---- */
+.gallery-section {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 60px 24px;
+  text-align: center;
+}
+
+.gallery-section h2 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.gallery-card {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  padding: 18px;
+  display: grid;
+  gap: 8px;
+  backdrop-filter: blur(12px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gallery-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.gallery-name {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.gallery-spec {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.gallery-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-2);
+}
+
+.gallery-meta span {
+  background: rgba(86, 196, 178, 0.1);
+  border: 1px solid rgba(86, 196, 178, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.gallery-actions {
+  display: flex;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.gallery-actions button {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+}
+
+.edit-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255, 179, 87, 0.08);
+  border: 1px solid rgba(255, 179, 87, 0.2);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+.edit-indicator .cancel-edit {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  margin-left: 4px;
+}
+
+.edit-indicator .cancel-edit:hover {
+  color: var(--text);
+}
+
 /* ---- Steps Section ---- */
 .steps-section {
   max-width: 1100px;
