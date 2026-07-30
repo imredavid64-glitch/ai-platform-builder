@@ -85,6 +85,7 @@
                 <span id="embeddingIndicator">Embeddings: ...</span>
                 <span id="archIndicator">Architecture: Single LLM</span>
                 <span id="buildIndicator">Build: AI Agent</span>
+                <button id="settingsBtn" class="ghost">Settings</button>
                 <button id="exportBtn" class="ghost">Export ZIP</button>
                 <button id="resetBtn" class="ghost">Start Over</button>
             </div>
@@ -164,6 +165,39 @@
         <p>Generated artifacts saved to <span class="mono">generated/&lt;your-ai&gt;</span>. Choose <strong>Website</strong> for a landing page or <strong>Desktop App</strong> for an Electron client.</p>
     </footer>
 
+    <div id="settingsModal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>AI Provider Settings</h3>
+                <button id="closeSettings" class="ghost">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label>Provider
+                    <select id="providerSelect">
+                        <option value="mock">Mock (no API key needed)</option>
+                        <option value="groq">Groq</option>
+                        <option value="openrouter">OpenRouter</option>
+                        <option value="google">Google AI Studio (Gemini)</option>
+                    </select>
+                </label>
+                <label>API Key
+                    <input type="password" id="apiKeyInput" placeholder="sk-..." />
+                </label>
+                <label>Model (optional)
+                    <input type="text" id="modelInput" placeholder="Auto: mixtral, gemini-2.0-flash, etc" />
+                </label>
+                <div class="modal-hint" id="providerHint">
+                    Select a provider and enter your API key to use a real AI model.
+                </div>
+                <button id="testConnectionBtn" class="ghost test-btn">Test Connection</button>
+                <div id="testResult" class="test-result"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveSettings" class="btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
-</body>
+  </body>
 </html>

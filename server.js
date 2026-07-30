@@ -17,6 +17,7 @@ const PROFILE_FILE = path.join(DATA_DIR, "profile.json");
 const PROFILES_DIR = path.join(DATA_DIR, "profiles");
 const NOTES_FILE = path.join(DATA_DIR, "notes.json");
 const CHUNKS_FILE = path.join(DATA_DIR, "chunks.json");
+const CONFIG_FILE = path.join(DATA_DIR, "config.json");
 
 const mkdirSync = require("fs").mkdirSync;
 mkdirSync(DATA_DIR, { recursive: true });
@@ -33,16 +34,49 @@ const CACHE_TTL = 1000 * 60 * 30;
 
 app.get("/api/health", async (req, res) => {
   const mode = getMode();
+  const cfg = await readJson(CONFIG_FILE, {});
   const embeddingMode = getEmbeddingMode();
+  const provider = cfg.provider || "mock";
   res.json({
-    mode,
-    model: process.env.LLM_MODEL || (mode === "mock" ? "mock" : "remote"),
+    mode: provider !== "mock" && cfg.apiKey ? provider : mode,
+    provider,
+    model: cfg.model || process.env.LLM_MODEL || provider,
+    hasKey: !!cfg.apiKey,
     embeddingMode,
     embeddingModel:
       embeddingMode === "remote"
         ? process.env.LLM_EMBEDDINGS_MODEL || "auto"
         : "hash-256"
   });
+});
+
+app.get("/api/config", async (req, res) => {
+  const cfg = await readJson(CONFIG_FILE, {});
+  res.json({
+    provider: cfg.provider || "mock",
+    model: cfg.model || "",
+    hasKey: !!cfg.apiKey
+  });
+});
+
+app.post("/api/config", async (req, res) => {
+  const { provider, apiKey, model } = req.body || {};
+  const cfg = { provider: provider || "mock", apiKey: apiKey || "", model: model || "" };
+  await writeJson(CONFIG_FILE, cfg);
+  res.json({ ok: true, provider: cfg.provider, hasKey: !!cfg.apiKey });
+});
+
+app.post("/api/chat/test", async (req, res) => {
+  const cfg = await readJson(CONFIG_FILE, {});
+  if (!cfg.apiKey || cfg.provider === "mock") {
+    return res.json({ ok: false, error: "No provider configured" });
+  }
+  try {
+    const result = await callProvider(cfg, "Respond with exactly: OK");
+    res.json({ ok: true, reply: result });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
 });
 
 app.get("/api/profile", async (req, res) => {
@@ -228,8 +262,10 @@ app.post("/api/chat", async (req, res) => {
   const notes = await getNotes();
   const chunks = await getChunks();
   const topChunks = await getTopChunks(chunks, String(message));
-  const mode = getMode();
+  const cfg = await readJson(CONFIG_FILE, {});
   const architecture = profile.architecture || "single";
+  const provider = cfg.provider || "mock";
+  const hasKey = !!cfg.apiKey;
 
   // Sustainable: check response cache first
   if (architecture === "sustainable") {
@@ -248,22 +284,28 @@ app.post("/api/chat", async (req, res) => {
   // Multi-LLM: classify task and pick model
   let modelOverride;
   let taskType = "default";
-  if (architecture === "multi-llm" && mode === "remote") {
+  if (architecture === "multi-llm" && provider !== "mock" && hasKey) {
     taskType = classifyTask(message);
     modelOverride = getModelForTask(taskType);
   }
 
   try {
     let reply = "";
-    let usedMode = mode;
+    let usedMode = provider;
 
-    if (mode === "remote") {
-      reply = await callRemoteModel({
+    if (provider !== "mock" && hasKey) {
+      const context = topChunks.length
+        ? `Indexed Context:\n${topChunks
+            .map((chunk) => `- ${chunk.title}: ${makeSnippet(chunk.content, 240)}`)
+            .join("\n")}`
+        : "";
+      const opts = {
         profile,
         message: String(message),
-        chunks: topChunks,
-        model: modelOverride
-      });
+        context,
+        model: modelOverride || cfg.model || undefined
+      };
+      reply = await callProvider(cfg, opts);
     } else {
       reply = buildMockReply({
         profile,
@@ -653,6 +695,82 @@ async function callRemoteModel({ profile, message, chunks, model: modelOverride 
     throw new Error("Remote model returned empty content");
   }
   return String(content).trim();
+}
+
+const PROVIDER_CONFIGS = {
+  groq: {
+    base: "https://api.groq.com/openai/v1",
+    defaultModel: "mixtral-8x7b-32768",
+    format: "openai"
+  },
+  openrouter: {
+    base: "https://openrouter.ai/api/v1",
+    defaultModel: "mistralai/mistral-7b-instruct",
+    format: "openai"
+  },
+  google: {
+    base: "https://generativelanguage.googleapis.com/v1beta",
+    defaultModel: "gemini-2.0-flash",
+    format: "gemini"
+  }
+};
+
+async function callProvider(cfg, opts) {
+  const provider = cfg.provider;
+  const config = PROVIDER_CONFIGS[provider];
+  if (!config) throw new Error("Unknown provider: " + provider);
+
+  const model = opts.model || cfg.model || config.defaultModel;
+  const systemPrompt = opts.profile.systemPrompt;
+  const userMessage = opts.message;
+  const context = opts.context || "";
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...(context ? [{ role: "system", content: context }] : []),
+    { role: "user", content: userMessage }
+  ];
+
+  if (config.format === "gemini") {
+    const contents = [];
+    if (systemPrompt) {
+      contents.push({ role: "user", parts: [{ text: systemPrompt + "\n\n---\n\n" + userMessage }] });
+    } else {
+      contents.push({ role: "user", parts: [{ text: userMessage }] });
+    }
+    const url = `${config.base}/models/${model}:generateContent?key=${cfg.apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents })
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error("Google AI error " + response.status + ": " + err);
+    }
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("Google AI returned empty response");
+    return String(text).trim();
+  }
+
+  const url = `${config.base}/chat/completions`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + cfg.apiKey
+    },
+    body: JSON.stringify({ model, messages, temperature: 0.4 })
+  });
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(provider + " error " + response.status + ": " + err);
+  }
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error(provider + " returned empty response");
+  return String(text).trim();
 }
 
 async function embedText(text) {

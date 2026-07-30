@@ -2,8 +2,18 @@ const modeIndicator = document.getElementById("modeIndicator");
 const embeddingIndicator = document.getElementById("embeddingIndicator");
 const archIndicator = document.getElementById("archIndicator");
 const buildIndicator = document.getElementById("buildIndicator");
+const settingsBtn = document.getElementById("settingsBtn");
 const exportBtn = document.getElementById("exportBtn");
 const resetBtn = document.getElementById("resetBtn");
+const settingsModal = document.getElementById("settingsModal");
+const closeSettings = document.getElementById("closeSettings");
+const providerSelect = document.getElementById("providerSelect");
+const apiKeyInput = document.getElementById("apiKeyInput");
+const modelInput = document.getElementById("modelInput");
+const providerHint = document.getElementById("providerHint");
+const testConnectionBtn = document.getElementById("testConnectionBtn");
+const testResult = document.getElementById("testResult");
+const saveSettings = document.getElementById("saveSettings");
 
 const profileForm = document.getElementById("profileForm");
 const nameInput = document.getElementById("name");
@@ -50,7 +60,97 @@ let editingSlug = null;
 init();
 
 async function init() {
-  await Promise.all([loadHealth(), loadProfile(), loadNotes(), loadDocs(), loadProfiles()]);
+  await Promise.all([loadHealth(), loadProfile(), loadNotes(), loadDocs(), loadProfiles(), loadConfig()]);
+}
+
+// ---- Settings Modal ----
+
+settingsBtn.addEventListener("click", () => {
+  settingsModal.classList.remove("hidden");
+});
+
+closeSettings.addEventListener("click", () => {
+  settingsModal.classList.add("hidden");
+});
+
+settingsModal.addEventListener("click", (e) => {
+  if (e.target === settingsModal) settingsModal.classList.add("hidden");
+});
+
+providerSelect.addEventListener("change", () => {
+  const hints = {
+    mock: "No API key needed. Chat uses mock replies.",
+    groq: "Get a free API key at console.groq.com",
+    openrouter: "Get an API key at openrouter.ai/keys",
+    google: "Get a Gemini API key at aistudio.google.com"
+  };
+  providerHint.textContent = hints[providerSelect.value] || "";
+  if (providerSelect.value === "mock") {
+    apiKeyInput.disabled = true;
+    apiKeyInput.placeholder = "No API key needed";
+  } else {
+    apiKeyInput.disabled = false;
+    apiKeyInput.placeholder = "Enter your API key";
+  }
+});
+
+testConnectionBtn.addEventListener("click", async () => {
+  testResult.textContent = "Testing...";
+  testResult.className = "test-result";
+  try {
+    const res = await fetch("/api/chat/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: providerSelect.value,
+        apiKey: apiKeyInput.value,
+        model: modelInput.value
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      testResult.textContent = "Connection successful!";
+      testResult.className = "test-result success";
+    } else {
+      testResult.textContent = "Error: " + (data.error || "Unknown");
+      testResult.className = "test-result error";
+    }
+  } catch (err) {
+    testResult.textContent = "Error: " + err.message;
+    testResult.className = "test-result error";
+  }
+});
+
+saveSettings.addEventListener("click", async () => {
+  try {
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: providerSelect.value,
+        apiKey: apiKeyInput.value,
+        model: modelInput.value
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      settingsModal.classList.add("hidden");
+      await loadHealth();
+      showMeta("Provider set to " + data.provider);
+    }
+  } catch (err) {
+    showMeta("Config error: " + err.message);
+  }
+});
+
+async function loadConfig() {
+  const res = await fetch("/api/config");
+  const cfg = await res.json();
+  if (cfg.provider) providerSelect.value = cfg.provider;
+  if (cfg.model) modelInput.value = cfg.model;
+  apiKeyInput.value = cfg.hasKey ? "********" : "";
+  apiKeyInput.disabled = cfg.provider === "mock";
+  providerSelect.dispatchEvent(new Event("change"));
 }
 
 cancelEdit.addEventListener("click", (e) => {
