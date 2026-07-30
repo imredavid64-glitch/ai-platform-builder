@@ -67,12 +67,14 @@ app.post("/api/config", async (req, res) => {
 });
 
 app.post("/api/chat/test", async (req, res) => {
-  const cfg = await readJson(CONFIG_FILE, {});
+  const { provider, apiKey, model } = req.body || {};
+  const cfg = { provider: provider || "mock", apiKey: apiKey || "", model: model || "" };
   if (!cfg.apiKey || cfg.provider === "mock") {
     return res.json({ ok: false, error: "No provider configured" });
   }
+  const profile = await getProfile();
   try {
-    const result = await callProvider(cfg, "Respond with exactly: OK");
+    const result = await callProvider(cfg, { profile, message: "Respond with exactly: OK", context: "" });
     res.json({ ok: true, reply: result });
   } catch (err) {
     res.json({ ok: false, error: err.message });
@@ -716,12 +718,15 @@ const PROVIDER_CONFIGS = {
 };
 
 async function callProvider(cfg, opts) {
+  if (typeof opts === "string") {
+    opts = { message: opts, profile: { systemPrompt: "You are a helpful AI assistant.", name: "AI", specialization: "General", persona: "", tone: "Helpful", goals: "" }, context: "" };
+  }
   const provider = cfg.provider;
   const config = PROVIDER_CONFIGS[provider];
   if (!config) throw new Error("Unknown provider: " + provider);
 
   const model = opts.model || cfg.model || config.defaultModel;
-  const systemPrompt = opts.profile.systemPrompt;
+  const systemPrompt = (opts.profile || {}).systemPrompt || "You are a helpful AI assistant.";
   const userMessage = opts.message;
   const context = opts.context || "";
 
