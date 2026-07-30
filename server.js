@@ -937,8 +937,9 @@ async function writeGenerated(profile, notes, chunks) {
   } else {
     const agentModule = [
       "// Auto-generated. Edit in the builder UI instead.",
-      `export const profile = ${JSON.stringify(profile, null, 2)};`,
-      "export const systemPrompt = profile.systemPrompt;"
+      `const profile = ${JSON.stringify(profile, null, 2)};`,
+      "const systemPrompt = profile.systemPrompt;",
+      "module.exports = { profile, systemPrompt };"
     ].join("\n");
     await fs.writeFile(path.join(dir, "agent.js"), `${agentModule}\n`, "utf8");
   }
@@ -1022,7 +1023,7 @@ async function generateWebsite(profile, dir) {
       </section>
     </main>
     <footer>
-      <p>${profile.architecture} architecture</p>
+      <p>${escHtml(profile.name)} &mdash; ${escHtml(profile.specialization)}</p>
     </footer>
   </div>
 </body>

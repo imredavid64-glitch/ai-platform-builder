@@ -57,7 +57,18 @@ cancelEdit.addEventListener("click", (e) => {
   e.preventDefault();
   editingSlug = null;
   editIndicator.classList.add("hidden");
+  nameInput.value = "";
+  personaInput.value = "";
+  specializationInput.value = "";
+  toneInput.value = "Direct, helpful, concise";
+  goalsInput.value = "";
+  constraintsInput.value = "";
+  buildTypeInput.value = "agent";
+  architectureInput.value = "single";
+  updateArchDisplay();
   updateButtonLabel();
+  promptPreview.textContent = "Define the AI to generate a live prompt.";
+  resultPanel.classList.add("hidden");
 });
 
 async function loadProfiles() {
